@@ -1,0 +1,38 @@
+{
+    "manifest_version": 3,
+    "key":"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3D/JNcYWlXb1wUn3XfYsz6eB6D+uwQufpHkHwk9V2tfi9BOPH4lnX5yrlW0MnjTB1WCHOCG6Zpedt3vdPKM3vU2gm46u7NRP5ex9/9TlO5pViGUkxB6YmyfEr9A/jd2rwP3YReaBxSzzux5T8u1ORVNm2hkUeRduYUqiNk8pTzC74M5Cw18u7BZsQ69DmReCLxqr+toluxea+bneadD2Jd/DadYA6nGbxAFmZZc0t65nktar4aAtXkee4gO6nJOjgoSJ0rZdnqD7Q3Aazw0Izbqcv1uywZVfnACgjFORdln4VFTAUSdqySKSDTSgzRMPARwpWFjXMALDp1dJZ+GGUQIDAQAB",
+    "name": "Mitsy",
+    "version": "1.0.0",
+    "description": "Mitsy AI meeting assistant",
+    "background": {
+      "service_worker": "event.js"
+    },
+    "action": {
+      "default_popup": "popup.html"
+    },
+    "content_scripts": [
+      {
+        "matches": [
+          "https://meet.google.com/*"
+        ],
+        "js": [
+          "content.js"
+        ]
+      }
+    ],
+    "permissions": [
+      "activeTab",
+      "storage",
+      "aiLanguageModelOriginTrial"
+    ],
+    "trial_tokens": ["Akz/MI+LPNuPrl5f3RFZkCrDboIftUybmL6JxpEQExQhIwEqFPPQnr+ksUsSxzyLbxf7tzYM2uD8k1NOHJkBgQoAAAB4eyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vZmdvYWlubWZlaGplbGppY2JlZmlubmhuZGhvbGxjbm8iLCJmZWF0dXJlIjoiQUlQcm9tcHRBUElGb3JFeHRlbnNpb24iLCJleHBpcnkiOjE3NjA0ODYzOTl9"],
+    "host_permissions": [
+
+    ],
+    "externally_connectable": {
+      "matches": [
+
+      ]
+    }
+  }
+  
