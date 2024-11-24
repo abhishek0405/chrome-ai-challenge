@@ -1,6 +1,3 @@
-let transcript;
-const systemPrompt =
-  "You are a helpful and friendly meeting assistant. You will be provided a meeting transcript and a follow up question, use the transcript and general knowledge to best answer the question.";
 tailwind.config = {
   theme: {
     extend: {
@@ -11,25 +8,60 @@ tailwind.config = {
   },
 };
 
+async function createSession() {
+  const session = await chrome.aiOriginTrial.languageModel.create({
+    monitor(m) {
+      m.addEventListener("downloadprogress", (e) => {
+        console.log(`Downloaded ${e.loaded} of ${e.total} bytes.`);
+      });
+    },
+  });
+  const summarizer = await ai.summarizer.create({
+    monitor(m) {
+      m.addEventListener("downloadprogress", (e) => {
+        console.log(`Downloaded ${e.loaded} of ${e.total} bytes.`);
+      });
+    },
+  });
+}
+
+createSession();
+
+let transcript;
+const systemPrompt =
+  "You are a helpful and friendly meeting assistant. You will be provided a meeting transcript that is not perfect and might have some language errors and a follow up question. Make most sense out of the transcript and answer the user's question in the best possible way in simple English sentences.";
+
 const relevancePrompt = `
 Here is a part of the transcript:
 {chunk}
 
 Question: {query}
 
-If this part of the transcript is relevant to the question, provide an answer.
-Otherwise, respond with 'NOT_RELEVANT'.
+If this part of the transcript is relevant to the question, provide an answer, no need to give the 'RELEVANT' phrase, just answer the question along with the question context. 
+
+Example prompt: If question is when was the deadline?
+Then answer with The deadline was on 10 January (notice how both answer and context is given)
+
+Otherwise, just respond with 'NOT_RELEVANT', no other explanation is needed in this case.
+
+
 `;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "TRANSCRIPT") {
     const receivedData = message.payload;
     transcript = receivedData.value;
-    console.log("saved transcript is ", transcript);
+    // console.log("saved transcript is ", transcript);
   }
 });
 
-function chunkTranscript(transcript, maxTokens = 80) {
+if ("summarizer" in ai) {
+  console.log("Summarisation API is supported : ", ai);
+} else {
+  console.log("Summarisation API is not supported : ");
+}
+
+function chunkTranscript(transcript, maxTokens = 800) {
   const chunks = [];
   let currentChunk = [];
   let currentChunkTokensCount = 0;
@@ -58,9 +90,9 @@ function chunkTranscript(transcript, maxTokens = 80) {
 
 async function queryChunk(chunk, query, index) {
   try {
-    console.log(`Processing chunk ${index}:`);
-    console.log("Chunk content:", chunk);
-    console.log("Query:", query);
+    // console.log(`Processing chunk ${index}:`);
+    // console.log("Chunk content:", chunk);
+    // console.log("Query:", query);
 
     const session = await chrome.aiOriginTrial.languageModel.create({
       systemPrompt: systemPrompt,
@@ -80,21 +112,46 @@ async function queryChunk(chunk, query, index) {
   }
 }
 
-function summarizeResponses(responses) {
+const summarizeResponses = async (userQuery, responses) => {
   console.log("Responses before summarizing:", responses);
-  const combinedText = responses.join("\n\n");
-  const summarizedText =
-    combinedText.length > 2000
-      ? combinedText.substring(0, 2000) + "..."
-      : combinedText;
-  console.log("Response after summarizing:", summarizedText);
-  return summarizedText;
-}
+  const summarisationContext = responses.join(" ");
+  const options = {
+    sharedContext: "This is a meeting transcript discussion",
+    type: "tl;dr",
+    format: "plain-text",
+    length: "short",
+  };
+
+  const available = (await ai.summarizer.capabilities()).available;
+  let summarizer;
+  if (available === "no") {
+    // console.log("Summarizer API is not available.");
+    return;
+  }
+  if (available === "readily") {
+    // console.log("Summarizer API is ready for immediate use.");
+    summarizer = await ai.summarizer.create(options);
+  } else {
+    // console.log("Summarizer API requires model download before use.");
+    summarizer = await ai.summarizer.create(options);
+    summarizer.addEventListener("downloadprogress", (e) => {
+      // console.log(`Download progress: ${e.loaded}/${e.total}`);
+    });
+    await summarizer.ready;
+  }
+
+  const summary = await summarizer.summarize(summarisationContext, {
+    context: `Use the context to give a summarised answer for the question ${userQuery}. Give a crisp answer covering all key points from the context shared. `,
+  });
+
+  return summary;
+};
 async function handleQuery(userPrompt) {
   const query = userPrompt;
+  console.log("query is ", query);
   const currentTranscript = transcript;
   if (!query || !currentTranscript) {
-    outputDiv.innerText = "Please provide both a query and a transcript.";
+    console.log("Empty query/transcript, not processing further");
     return;
   }
   const chunks = chunkTranscript(currentTranscript);
@@ -104,15 +161,15 @@ async function handleQuery(userPrompt) {
 
   try {
     const responses = await Promise.all(promises);
-    console.log("All responses before filtering:", responses);
+    // console.log("All responses before filtering:", responses);
     const relevantResponses = responses.filter(
-      (response) => response !== "NOT_RELEVANT" && response !== "ERROR"
+      (response) => !response.includes("NOT_RELEVANT") && response !== "ERROR"
     );
-    console.log("Relevant responses after filtering:", relevantResponses);
+    // console.log("Relevant responses after filtering:", relevantResponses);
 
     if (relevantResponses.length) {
-      const summary = summarizeResponses(relevantResponses);
-      console.log("summarised response is ", summary);
+      const summary = await summarizeResponses(query, relevantResponses);
+      console.log("Final Summarised response is ", summary);
     } else {
       console.log("No summary found");
     }
@@ -138,7 +195,7 @@ toggleSwitch.addEventListener("change", async function () {
 });
 
 chrome.storage.sync.get(["extensionEnabled"], function (result) {
-  toggleSwitch.checked = result.extensionEnabled || false; 
+  toggleSwitch.checked = result.extensionEnabled || false;
   setExtensionView();
 });
 
@@ -237,7 +294,6 @@ async function sendMessage(event) {
   if (message === "") {
     return;
   }
-  console.log("askING ai");
 
   handleQuery(message);
 }
@@ -255,20 +311,16 @@ chatWindow.addEventListener("scroll", () => {
   }, 2000);
 });
 
-// Function to scroll to the bottom
 const scrollToBottom = () => {
   if (chatWindow) {
     chatWindow.scrollTop = chatWindow.scrollHeight;
   }
 };
 
-// Call this function whenever a new message is added
 const addMessage = (messageElement) => {
   chatWindow.appendChild(messageElement);
   scrollToBottom();
 };
-
-// Add these functions at the end of the file
 
 const helpButton = document.getElementById("help-button");
 const howToUseSection = document.getElementById("how-to-use");
@@ -280,41 +332,34 @@ if (helpButton) {
 }
 
 function toggleHowToUse() {
-  console.log(howToUseSection);
-  console.log(chatContainer);
-  console.log(alertMessage);
   if (howToUseSection && chatContainer && alertMessage) {
     if (howToUseSection.classList.contains("hidden")) {
       // Show How to Use section
       howToUseSection.classList.remove("hidden");
       chatContainer.classList.add("hidden");
       alertMessage.classList.add("hidden");
-      helpButton.classList.add("text-purple-600"); // Add purple color
+      helpButton.classList.add("text-purple-600");
     } else {
       // Hide How to Use section
       howToUseSection.classList.add("hidden");
       chatContainer.classList.remove("hidden");
-      setExtensionView(); // This will show/hide the alert message based on the current state
-      helpButton.classList.remove("text-purple-600"); // Remove purple color
+      setExtensionView();
+      helpButton.classList.remove("text-purple-600");
     }
   } else {
     console.error("One or more required elements are missing");
   }
 }
 
-// Ensure the chat window is scrolled to the bottom when the extension is opened
 document.addEventListener("DOMContentLoaded", () => {
   scrollToBottom();
 });
 
-// MutationObserver to watch for changes in the chat window
 const observer = new MutationObserver(scrollToBottom);
 observer.observe(chatWindow, { childList: true, subtree: true });
 
-// Scroll to bottom after a short delay to ensure all content is loaded
 setTimeout(scrollToBottom, 100);
 
-// Add CSS for typing indicator animation
 const style = document.createElement("style");
 style.textContent = `
   .typing-indicator {
