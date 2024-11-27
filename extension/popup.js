@@ -31,6 +31,14 @@ let transcript;
 const systemPrompt =
   "You are a helpful and friendly meeting assistant. You will be provided a meeting transcript that is not perfect and might have some language errors and a follow up question. Make most sense out of the transcript and answer the user's question in the best possible way in simple English sentences.";
 
+const cleanUpPrompt = `
+  Here is a part of the transcript which is in English but is worded poorly due to poor transcription. It will have errors such as spelling mistakes, missing punctuations, mixed words etc.:
+
+  {chunk}
+  
+  I want you to rephrase the transcript in proper English and output it back in English. Output only the corrected transcript, no need to provide any explanations.
+  
+  `;
 const relevancePrompt = `
 Here is a part of the transcript:
 {chunk}
@@ -88,9 +96,31 @@ function chunkTranscript(transcript, maxTokens = 800) {
   return chunks;
 }
 
+async function cleanupChunk(chunk, index) {
+  try {
+    console.log(`Cleaning up chunk ${index}:`);
+    console.log("Unclean Chunk content:", chunk);
+
+    const session = await chrome.aiOriginTrial.languageModel.create({
+      systemPrompt:
+        "You are a powerful model capable of receiving poorly phrased English transcripts and converting back to high quality english transcripts without any grammatical errors",
+    });
+
+    const message = cleanUpPrompt.replace("{chunk}", chunk);
+
+    const response = await session.prompt(message);
+    console.log(`Cleaned chunk ${index}:`, response.trim());
+    console.log("----------------------------------------");
+    return response.trim();
+  } catch (error) {
+    console.error(`Error cleaning up chunk ${index}:`, error);
+    return "ERROR";
+  }
+}
+
 async function queryChunk(chunk, query, index) {
   try {
-    // console.log(`Processing chunk ${index}:`);
+    console.log(`Processing chunk ${index}:`);
     // console.log("Chunk content:", chunk);
     // console.log("Query:", query);
 
@@ -155,9 +185,15 @@ async function handleQuery(userPrompt) {
     return;
   }
   const chunks = chunkTranscript(currentTranscript);
-  const promises = chunks.map((chunk, index) =>
-    queryChunk(chunk, query, index)
-  );
+  const promises = chunks.map(async (chunk, index) => {
+    let cleanedChunk = chunk;
+    try {
+      cleanedChunk = await cleanupChunk(chunk, index);
+    } catch (error) {
+      console.error(`Error cleaning up chunk ${index}:`, error);
+    }
+    return queryChunk(cleanedChunk, query, index);
+  });
 
   try {
     const responses = await Promise.all(promises);
