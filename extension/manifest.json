@@ -23,12 +23,23 @@
     "permissions": [
       "activeTab",
       "storage",
-      "aiLanguageModelOriginTrial"
+      "aiLanguageModelOriginTrial",
+      "tabCapture",
+      "tabs"
     ],
     "trial_tokens": ["Akz/MI+LPNuPrl5f3RFZkCrDboIftUybmL6JxpEQExQhIwEqFPPQnr+ksUsSxzyLbxf7tzYM2uD8k1NOHJkBgQoAAAB4eyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vZmdvYWlubWZlaGplbGppY2JlZmlubmhuZGhvbGxjbm8iLCJmZWF0dXJlIjoiQUlQcm9tcHRBUElGb3JFeHRlbnNpb24iLCJleHBpcnkiOjE3NjA0ODYzOTl9","Ah8FeFHJwZqnXD25Ura0UYyCabWFqeDwm5trecj0SVyFA4ZYWCwBj0z1UVYcJt3xeCj4fzsiuudg4ce6TobR4wwAAABzeyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vZmdvYWlubWZlaGplbGppY2JlZmlubmhuZGhvbGxjbm8iLCJmZWF0dXJlIjoiQUlTdW1tYXJpemF0aW9uQVBJIiwiZXhwaXJ5IjoxNzUzMTQyNDAwfQ=="],
     "host_permissions": [
 
     ],
+    "commands": {
+        "test-tab-capture": {
+            "suggested_key": {
+                "default": "Ctrl+Shift+K",
+                "mac": "Command+Shift+K"
+            },
+            "description": "test tab capture"
+        }
+    },
     "externally_connectable": {
       "matches": [
 

@@ -178,6 +178,56 @@ async function handleQuery(userPrompt) {
   }
 }
 
+const summarizeTranscript = async () => {
+  const currentTranscript = transcript;
+  if (!currentTranscript || !currentTranscript.length) {
+    console.log("Empty transcript dialogues, not processing further");
+    return;
+  }
+
+  const summarisationContext = responses.join(" ");
+  const options = {
+    sharedContext: "This is a meeting transcript discussion",
+    type: "tl;dr",
+    format: "plain-text",
+    length: "short",
+  };
+
+  const available = (await ai.summarizer.capabilities()).available;
+  let summarizer;
+  if (available === "no") {
+    // console.log("Summarizer API is not available.");
+    return;
+  }
+  if (available === "readily") {
+    // console.log("Summarizer API is ready for immediate use.");
+    summarizer = await ai.summarizer.create(options);
+  } else {
+    // console.log("Summarizer API requires model download before use.");
+    summarizer = await ai.summarizer.create(options);
+    summarizer.addEventListener("downloadprogress", (e) => {
+      // console.log(`Download progress: ${e.loaded}/${e.total}`);
+    });
+    await summarizer.ready;
+  }
+
+  const transcriptChunks = chunkTranscript(currentTranscript);
+  const promises = transcriptChunks.map((chunk, index) =>
+    summarizer.summarize(summarisationContext, {
+      context: `Use the context to give a summarised answer for the question. Give a short and crisp answer covering all key points from the context shared.`,
+      chunk: chunk,
+    })
+  );
+
+  try {
+    const responses = await Promise.all(promises);
+    const finalSummary = await summarizeResponses("summarize this list of summaries of a meeting transcript", responses);
+    return finalSummary;
+  } catch (error) {
+    console.log(`Error: ${error.message}`);
+  }
+}
+
 const toggleSwitch = document.getElementById("toggle-switch");
 toggleSwitch.addEventListener("change", async function () {
   var isChecked = this.checked;
@@ -402,3 +452,42 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// const cleanText = (input) => {
+//   console.log("cleaning text")
+//   return nlp(input).normalize().out("text");
+// }
+
+// let answer  = cleanText("You : Hey, how are we doing today? We'rgonna talk about some stuff and we'rgonna see how this is gonThe transcripts. I am making sure speak fast enough and I don't speavery clear enough so that there arsome spelling errors in or evegrammar errors in the sentence aextension should correct it, righOkay, let's see how this goes. Okay.")
+// console.log(answer)
+
+// const dictionary = new Typo("en_US");
+
+// function correctSpelling(text) {
+//   console.log('correcting spelling')
+//     return text.split(" ").map(word => {
+//         return dictionary.check(word) ? word : dictionary.suggest(word)[0] || word;
+//     }).join(" ");
+// }
+// let typoAnswer = correctSpelling("You : Hey, how are we doing today? We'rgonna talk about some stuff and we'rgonna see how this is gonThe transcripts. I am making sure speak fast enough and I don't speavery clear enough so that there arsome spelling errors in or evegrammar errors in the sentence aextension should correct it, righOkay, let's see how this goes. Okay.")
+// console.log(typoAnswer)
+
+// audio capture
+// let tabId;
+
+// // Fetch tab immediately
+// chrome.runtime.sendMessage({command: 'query-active-tab'}, (response) => {
+//     tabId = response.id;
+// });
+
+// // On command, get the stream ID and forward it back to the service worker
+// chrome.commands.onCommand.addListener((command) => {
+//     chrome.tabCapture.getMediaStreamId({consumerTabId: tabId}, (streamId) => {
+//       console.log(tabId)
+//         chrome.runtime.sendMessage({
+//             command: 'tab-media-stream',
+//             tabId: tabId,
+//             streamId: streamId
+//         })
+//     });
+// });

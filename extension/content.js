@@ -191,3 +191,96 @@ async function callEnds() {
 async function endMeeting() {
   console.log("meeting ended");
 }
+
+
+
+
+
+
+
+// STREAMING AUDIO CHUNKS
+
+// Service worker sent us the stream ID, use it to get the stream
+// chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+//   navigator.mediaDevices.getUserMedia({
+//       video: false,
+//       audio: true,
+//       audio: {
+//           mandatory: {
+//               chromeMediaSource: 'tab',
+//               chromeMediaSourceId: request.streamId
+//           }
+//       }
+//   })
+//   .then((stream) => {
+//       // Once we're here, the audio in the tab is muted
+//       // However, recording the audio works!
+//       const recorder = new MediaRecorder(stream);
+//       const chunks = [];
+//       recorder.ondataavailable = (e) => {
+//           chunks.push(e.data);
+//       };
+//       recorder.onstop = (e) => saveToFile(new Blob(chunks), "test.wav");
+//       recorder.start();
+//       setTimeout(() => recorder.stop(), 5000);
+//   });
+// });
+
+// function saveToFile(blob, name) {
+//   const url = window.URL.createObjectURL(blob);
+//   const a = document.createElement("a");
+//   document.body.appendChild(a);
+//   a.style = "display: none";
+//   a.href = url;
+//   a.download = name;
+//   a.click();
+//   URL.revokeObjectURL(url);
+//   a.remove();
+// }
+
+
+async function captureAudio() {
+  try {
+    // Capture microphone audio
+    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    console.log("Microphone stream captured:", micStream);
+
+    // Capture tab audio
+    const tabStream = await new Promise((resolve, reject) => {
+      chrome.tabCapture.capture({ audio: true, video: false }, (stream) => {
+        if (chrome.runtime.lastError || !stream) {
+          reject(chrome.runtime.lastError || "Failed to capture tab audio.");
+        } else {
+          resolve(stream);
+        }
+      });
+    });
+    console.log("Tab stream captured:", tabStream);
+
+    // Combine microphone and tab audio into a single MediaStream
+    const audioContext = new AudioContext();
+    const micSource = audioContext.createMediaStreamSource(micStream);
+    const tabSource = audioContext.createMediaStreamSource(tabStream);
+
+    const destination = audioContext.createMediaStreamDestination();
+    micSource.connect(destination);
+    tabSource.connect(destination);
+
+    const combinedStream = destination.stream;
+    console.log("Combined audio stream:", combinedStream);
+
+    // Process the combined audio (e.g., send to a transcription API)
+    // Example: Use MediaRecorder to record audio
+    const recorder = new MediaRecorder(combinedStream);
+    recorder.ondataavailable = (event) => {
+      console.log("Audio data available:", event.data);
+      // Send audio data to a transcription API
+    };
+    recorder.start();
+  } catch (error) {
+    console.error("Error capturing audio:", error);
+  }
+}
+
+// Trigger audio capture
+captureAudio();
