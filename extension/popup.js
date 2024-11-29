@@ -213,22 +213,14 @@ async function handleQuery(userPrompt) {
   }
   const chunks = chunkTranscript(currentTranscript);
   const promises = chunks.map(async (chunk, index) => {
-    let cleanedChunk = chunk;
-    try {
-      cleanedChunk = await cleanupChunk(chunk, index);
-    } catch (error) {
-      console.error(`Error cleaning up chunk ${index}:`, error);
-    }
-    return queryChunk(cleanedChunk, query, index);
+    return queryChunk(chunk, query, index);
   });
 
   try {
     const responses = await Promise.all(promises);
-    // console.log("All responses before filtering:", responses);
     const relevantResponses = responses.filter(
       (response) => !response.includes("NOT_RELEVANT") && response !== "ERROR"
     );
-    // console.log("Relevant responses after filtering:", relevantResponses);
 
     if (relevantResponses.length) {
       const summary = await summarizeResponses(query, relevantResponses);
@@ -404,7 +396,6 @@ document.getElementById("chat-input").addEventListener("keypress", (event) => {
     sendMessage();
   }
 });
-
 async function sendMessage(event) {
   const input = document.getElementById("chat-input");
   const message = input.value.trim();
@@ -417,18 +408,45 @@ async function sendMessage(event) {
   // Create user message element
   const userMessage = document.createElement("div");
   userMessage.className =
-    "relative mb-2 p-2 bg-purple-500 text-white self-end rounded-xl rounded-br-none mr-3 ml-2";
+    "relative mb-2 p-2 bg-green-600 text-white self-end rounded-xl rounded-br-none mr-3 ml-2";
   userMessage.innerText = message;
-  addMessage(userMessage);
   chatWindow.appendChild(userMessage);
+  scrollToBottom();
+
+  // Store user message
+  try {
+    const chatHistory = await new Promise((resolve) => {
+      chrome.storage.local.get(["chatHistory"], (result) => {
+        resolve(result.chatHistory || []);
+      });
+    });
+
+    console.log("user message, current chat history ", chatHistory);
+
+    const updatedHistory = [
+      ...chatHistory,
+      {
+        type: "user",
+        message: message,
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    await new Promise((resolve) => {
+      chrome.storage.local.set({ chatHistory: updatedHistory }, resolve);
+    });
+
+    console.log("Chat history after setting:", updatedHistory);
+  } catch (error) {
+    console.error("Error storing chat history:", error);
+  }
 
   input.value = "";
-  scrollToBottom();
 
   // Create typing indicator
   const typingIndicator = document.createElement("div");
   typingIndicator.className =
-    "relative mb-2 p-2 bg-pink-500 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
+    "relative mb-2 p-2 bg-emerald-600 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
   typingIndicator.innerHTML = `
     <div class="typing-indicator">
       <span></span>
@@ -448,9 +466,31 @@ async function sendMessage(event) {
     // Create bot response element
     const botMessage = document.createElement("div");
     botMessage.className =
-      "relative mb-2 p-2 bg-pink-500 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
-    botMessage.innerText = response || "No relevant information found.";
+      "relative mb-2 p-2 bg-emerald-600 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
+    const botResponse = response || "No relevant information found.";
+    botMessage.innerText = botResponse;
     chatWindow.appendChild(botMessage);
+
+    // Store bot message
+    const currentHistory = await new Promise((resolve) => {
+      chrome.storage.local.get(["chatHistory"], (result) => {
+        resolve(result.chatHistory || []);
+      });
+    });
+
+    const updatedHistory = [
+      ...currentHistory,
+      {
+        type: "bot",
+        message: botResponse,
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    await new Promise((resolve) => {
+      chrome.storage.local.set({ chatHistory: updatedHistory }, resolve);
+    });
+
     scrollToBottom();
   } catch (error) {
     console.error("Error:", error);
@@ -464,13 +504,59 @@ async function sendMessage(event) {
       "relative mb-2 p-2 bg-red-500 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
     errorMessage.innerText = "Sorry, something went wrong.";
     chatWindow.appendChild(errorMessage);
+
+    // Store error message
+    const currentHistory = await new Promise((resolve) => {
+      chrome.storage.local.get(["chatHistory"], (result) => {
+        resolve(result.chatHistory || []);
+      });
+    });
+
+    const updatedHistory = [
+      ...currentHistory,
+      {
+        type: "error",
+        message: "Sorry, something went wrong.",
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    await new Promise((resolve) => {
+      chrome.storage.local.set({ chatHistory: updatedHistory }, resolve);
+    });
+
     scrollToBottom();
   }
-
-  console.log("Summarizing transcript");
-  var summary = await summarizeTranscript();
-  console.log("final summary : ", summary);
 }
+
+// Load chat history when popup opens
+function loadChatHistory() {
+  console.log("loading chats");
+  chrome.storage.local.get(["chatHistory"], function (result) {
+    const chatHistory = result.chatHistory || [];
+
+    chatHistory.forEach((chat) => {
+      const messageElement = document.createElement("div");
+
+      if (chat.type === "user") {
+        messageElement.className =
+          "relative mb-2 p-2 bg-green-600 text-white self-end rounded-xl rounded-br-none mr-3 ml-2";
+      } else if (chat.type === "bot") {
+        messageElement.className =
+          "relative mb-2 p-2 bg-emerald-900 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
+      } else if (chat.type === "error") {
+        messageElement.className =
+          "relative mb-2 p-2 bg-red-500 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
+      }
+
+      messageElement.innerText = chat.message;
+      addMessage(messageElement);
+    });
+  });
+}
+
+// Call loadChatHistory when popup opens
+document.addEventListener("DOMContentLoaded", loadChatHistory);
 
 const chatWindow = document.getElementById("chat-window");
 let isScrolling;

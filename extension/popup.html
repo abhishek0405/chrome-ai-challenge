@@ -21,24 +21,24 @@
     <div class="rounded-lg">
 
 
-    <div id="content" class="flex flex-col flex-grow w-80 bg-gray-900">
+    <div id="content" class="flex flex-col flex-grow w-80 bg-gradient-to-b from-gray-900 to-gray-800">
         <div class="flex items-center p-2">
             <img src="/dark-logo.png" alt="logo" width="60px" height="60px">
             <span id="welcome-message-container" class="text-white font-bold ml-4" style="font-size: 13px;"></span>
             <!-- Add question mark icon -->
-            <button id="help-button" class="ml-auto mr-2 text-white hover:text-purple-400 transition-colors duration-300">
+            <button id="help-button" class="ml-auto mr-2 text-white hover:text-green-400 transition-colors duration-300">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             </button>
             <label class="inline-flex items-center cursor-pointer">
                 <input id="toggle-switch" type="checkbox" value="" class="sr-only peer">
-                <div class="relative w-10 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
+                <div class="relative w-10 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 dark:peer-focus:ring-green-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div>
             </label>
         </div>
         <div id="alert-message">
             <div style="text-align: center;margin-top: 10px;">
-                <p style="font-family: 'Crimson Text', serif;font-size: 15px;width: 200px;margin: auto;color: red;">Enable Captions to get started</p>
+                <p style="font-family: 'Crimson Text', serif;font-size: 15px;width: 200px;margin: auto;color: #22c55e;">Enable Captions to get started</p>
             </div>
         </div>
             <div id="captions-on" class="flex flex-col flex-grow">
@@ -48,13 +48,13 @@
 
                     </div>
                     <div class="flex items-center px-2 mb-3">
-                        <input id="chat-input" type="text" class="flex-1 bg-gray-800 text-white placeholder-gray-400 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 rounded-full" placeholder="Type a message...">
+                        <input id="chat-input" type="text" class="flex-1 bg-gray-800 text-white placeholder-gray-400 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-400 rounded-full" placeholder="Type a message...">
                         <button id="send-button" class="p-2 cursor-pointer transition-all duration-300 group">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
                                 <defs>
                                     <linearGradient id="sendGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" stop-color="#9333ea" />
-                                        <stop offset="100%" stop-color="#ec4899" />
+                                        <stop offset="0%" stop-color="#22c55e" />
+                                        <stop offset="100%" stop-color="#16a34a" />
                                     </linearGradient>
                                 </defs>
                                 <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" fill="url(#sendGradient)" class="group-hover:opacity-80" />
@@ -67,13 +67,13 @@
             </div>
 
     <div id="how-to-use" class="hidden flex-col flex-grow p-4 text-white">
-        <h2 class="text-xl font-bold mb-3 text-center text-purple-400">How to Use Guide</h2>
+        <h2 class="text-xl font-bold mb-3 text-center text-green-400">How to Use Guide</h2>
         <ol class="list-decimal list-inside space-y-4 text-sm mb-3">
             <li>Enable/Disable with the toggle switch.</li>
 
             <li>Ensure captions are enabled and set to your preferred language </li>
         </ol>
-        <footer class="mt-auto text-center text-sm text-purple-300">
+        <footer class="mt-auto text-center text-sm text-green-300">
             Happy Meetings!
         </footer>
     </div>

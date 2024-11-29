@@ -189,6 +189,8 @@ async function callEnds() {
 }
 
 async function endMeeting() {
+  chrome.storage.local.set({ chatHistory: [] });
+
   console.log("meeting ended");
   const doc = new jsPDF();
 
@@ -387,10 +389,7 @@ async function cleanupChunk(chunk, index) {
     console.log(`Cleaning up chunk ${index}:`);
     console.log("Unclean Chunk content:", chunk);
 
-    const session = await chrome.aiOriginTrial.languageModel.create({
-      systemPrompt:
-        "You are a powerful model capable of receiving poorly phrased English transcripts and converting back to high quality english transcripts without any grammatical errors",
-    });
+    const session = await ai.languageModel.create();
 
     const message = cleanUpPrompt.replace("{chunk}", chunk);
 
