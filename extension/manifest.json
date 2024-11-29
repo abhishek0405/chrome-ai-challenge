@@ -16,7 +16,8 @@
           "https://meet.google.com/*"
         ],
         "js": [
-          "content.js"
+          "content.js",
+          "jspdf.min.js"
         ]
       }
     ],

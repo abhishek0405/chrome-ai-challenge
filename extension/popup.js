@@ -60,6 +60,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const receivedData = message.payload;
     transcript = receivedData.value;
     // console.log("saved transcript is ", transcript);
+  } else if (message.type === "END_MEETING") {
+    console.log("Recevied END Meeting Request");
+    const receivedData = message.payload;
+    transcript = receivedData.value;
+    saveMeetingMinutes(transcript);
   }
 });
 
@@ -68,6 +73,28 @@ if ("summarizer" in ai) {
 } else {
   console.log("Summarisation API is not supported : ");
 }
+
+const saveMeetingMinutes = (transcript) => {
+  const doc = new jsPDF();
+
+  // Add content to PDF
+  doc.setFontSize(16);
+  doc.text("Meeting Summary", 20, 20);
+
+  doc.setFontSize(12);
+  doc.text("Meeting Transcript:", 20, 40);
+
+  // Add transcript content with word wrapping
+  const splitText = doc.splitTextToSize(transcript.join("\n"), 170);
+  doc.text(splitText, 20, 50);
+
+  // Get current date/time for filename
+  const date = new Date();
+  const filename = `meeting-transcript-${date.toISOString().split("T")[0]}.pdf`;
+  console.log("saving transcript");
+  // Save the PDF
+  doc.save(filename);
+};
 
 function chunkTranscript(transcript, maxTokens = 800) {
   const chunks = [];
@@ -206,12 +233,15 @@ async function handleQuery(userPrompt) {
     if (relevantResponses.length) {
       const summary = await summarizeResponses(query, relevantResponses);
       console.log("Final Summarised response is ", summary);
+      return summary;
     } else {
       console.log("No summary found");
     }
   } catch (error) {
     console.log(`Error: ${error.message}`);
   }
+
+  //
 }
 
 const summarizeTranscript = async () => {
@@ -220,8 +250,6 @@ const summarizeTranscript = async () => {
     console.log("Empty transcript dialogues, not processing further");
     return;
   }
-
-  const summarisationContext = responses.join(" ");
   const options = {
     sharedContext: "This is a meeting transcript discussion",
     type: "tl;dr",
@@ -249,20 +277,23 @@ const summarizeTranscript = async () => {
 
   const transcriptChunks = chunkTranscript(currentTranscript);
   const promises = transcriptChunks.map((chunk, index) =>
-    summarizer.summarize(summarisationContext, {
-      context: `Use the context to give a summarised answer for the question. Give a short and crisp answer covering all key points from the context shared.`,
+    summarizer.summarize(chunk, {
+      context: `Use the context to give a summarize the entire transcript. Provide the meeting minutes along with action items.`,
       chunk: chunk,
     })
   );
 
   try {
     const responses = await Promise.all(promises);
-    const finalSummary = await summarizeResponses("summarize this list of summaries of a meeting transcript", responses);
+    const finalSummary = await summarizeResponses(
+      "summarize this list of summaries of a meeting transcript.Ensure that you give meeting minutes along with action items",
+      responses
+    );
     return finalSummary;
   } catch (error) {
     console.log(`Error: ${error.message}`);
   }
-}
+};
 
 const toggleSwitch = document.getElementById("toggle-switch");
 toggleSwitch.addEventListener("change", async function () {
@@ -381,7 +412,64 @@ async function sendMessage(event) {
     return;
   }
 
-  handleQuery(message);
+  const chatWindow = document.getElementById("chat-window");
+
+  // Create user message element
+  const userMessage = document.createElement("div");
+  userMessage.className =
+    "relative mb-2 p-2 bg-purple-500 text-white self-end rounded-xl rounded-br-none mr-3 ml-2";
+  userMessage.innerText = message;
+  addMessage(userMessage);
+  chatWindow.appendChild(userMessage);
+
+  input.value = "";
+  scrollToBottom();
+
+  // Create typing indicator
+  const typingIndicator = document.createElement("div");
+  typingIndicator.className =
+    "relative mb-2 p-2 bg-pink-500 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
+  typingIndicator.innerHTML = `
+    <div class="typing-indicator">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+  `;
+  chatWindow.appendChild(typingIndicator);
+  scrollToBottom();
+
+  try {
+    const response = await handleQuery(message);
+
+    // Remove typing indicator
+    chatWindow.removeChild(typingIndicator);
+
+    // Create bot response element
+    const botMessage = document.createElement("div");
+    botMessage.className =
+      "relative mb-2 p-2 bg-pink-500 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
+    botMessage.innerText = response || "No relevant information found.";
+    chatWindow.appendChild(botMessage);
+    scrollToBottom();
+  } catch (error) {
+    console.error("Error:", error);
+
+    // Remove typing indicator
+    chatWindow.removeChild(typingIndicator);
+
+    // Create error message element
+    const errorMessage = document.createElement("div");
+    errorMessage.className =
+      "relative mb-2 p-2 bg-red-500 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
+    errorMessage.innerText = "Sorry, something went wrong.";
+    chatWindow.appendChild(errorMessage);
+    scrollToBottom();
+  }
+
+  console.log("Summarizing transcript");
+  var summary = await summarizeTranscript();
+  console.log("final summary : ", summary);
 }
 
 const chatWindow = document.getElementById("chat-window");

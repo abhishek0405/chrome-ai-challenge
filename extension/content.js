@@ -190,97 +190,216 @@ async function callEnds() {
 
 async function endMeeting() {
   console.log("meeting ended");
+  const doc = new jsPDF();
+
+  // Title
+  doc.setFontSize(24);
+  doc.setFont("helvetica", "bold");
+  doc.text("Meeting Report", 105, 20, { align: "center" });
+
+  // Date
+  const date = new Date();
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "normal");
+  doc.text(date.toLocaleDateString(), 105, 30, { align: "center" });
+
+  // Summary Section
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text("Summary", 20, 50);
+
+  const summary = await summarizeTranscript(script);
+  if (summary) {
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    const summaryText = doc.splitTextToSize(summary, 170);
+    doc.text(summaryText, 20, 60);
+  }
+
+  // Transcript Section
+  const transcriptY = summary
+    ? 60 + doc.splitTextToSize(summary, 170).length * 7
+    : 60;
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.text("Full Transcript", 20, transcriptY);
+
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "normal");
+  const chunks = chunkTranscript(script);
+  const promises = chunks.map(async (chunk, index) => {
+    let cleanedChunk = chunk;
+    try {
+      cleanedChunk = await cleanupChunk(chunk, index);
+    } catch (error) {
+      console.error(`Error cleaning up chunk ${index}:`, error);
+    }
+    return cleanedChunk;
+  });
+
+  var cleanedTranscript = await Promise.all(promises);
+  cleanedTranscript = cleanedTranscript.map((chunk, index) =>
+    chunk === "ERROR" ? chunks[index] : chunk
+  );
+
+  // Format transcript with line breaks between dialogues
+  const formattedTranscript = cleanedTranscript
+    .map((chunk) => chunk.split(/(?<=[.!?])\s+/)) // Split into sentences
+    .flat()
+    .filter((line) => line.trim()) // Remove empty lines
+    .join("\n\n"); // Add double line breaks
+
+  const transcriptText = doc.splitTextToSize(formattedTranscript, 170);
+  doc.text(transcriptText, 20, transcriptY + 10);
+
+  // Save PDF
+  const filename = `meeting-report-${date.toISOString().split("T")[0]}.pdf`;
+  console.log("Saving transcript and summary to PDF");
+  doc.save(filename);
+
+  console.log("Meeting summary:", summary);
 }
 
+const summarizeTranscript = async (script) => {
+  const currentTranscript = script;
+  if (!currentTranscript || !currentTranscript.length) {
+    console.log("Empty transcript dialogues, not processing further");
+    return;
+  }
+  const options = {
+    sharedContext: "This is a meeting transcript discussion",
+    type: "tl;dr",
+    format: "plain-text",
+    length: "short",
+  };
 
-
-
-
-
-
-// STREAMING AUDIO CHUNKS
-
-// Service worker sent us the stream ID, use it to get the stream
-// chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-//   navigator.mediaDevices.getUserMedia({
-//       video: false,
-//       audio: true,
-//       audio: {
-//           mandatory: {
-//               chromeMediaSource: 'tab',
-//               chromeMediaSourceId: request.streamId
-//           }
-//       }
-//   })
-//   .then((stream) => {
-//       // Once we're here, the audio in the tab is muted
-//       // However, recording the audio works!
-//       const recorder = new MediaRecorder(stream);
-//       const chunks = [];
-//       recorder.ondataavailable = (e) => {
-//           chunks.push(e.data);
-//       };
-//       recorder.onstop = (e) => saveToFile(new Blob(chunks), "test.wav");
-//       recorder.start();
-//       setTimeout(() => recorder.stop(), 5000);
-//   });
-// });
-
-// function saveToFile(blob, name) {
-//   const url = window.URL.createObjectURL(blob);
-//   const a = document.createElement("a");
-//   document.body.appendChild(a);
-//   a.style = "display: none";
-//   a.href = url;
-//   a.download = name;
-//   a.click();
-//   URL.revokeObjectURL(url);
-//   a.remove();
-// }
-
-
-async function captureAudio() {
-  try {
-    // Capture microphone audio
-    const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    console.log("Microphone stream captured:", micStream);
-
-    // Capture tab audio
-    const tabStream = await new Promise((resolve, reject) => {
-      chrome.tabCapture.capture({ audio: true, video: false }, (stream) => {
-        if (chrome.runtime.lastError || !stream) {
-          reject(chrome.runtime.lastError || "Failed to capture tab audio.");
-        } else {
-          resolve(stream);
-        }
-      });
+  const available = (await ai.summarizer.capabilities()).available;
+  let summarizer;
+  if (available === "no") {
+    // console.log("Summarizer API is not available.");
+    return;
+  }
+  if (available === "readily") {
+    // console.log("Summarizer API is ready for immediate use.");
+    summarizer = await ai.summarizer.create(options);
+  } else {
+    // console.log("Summarizer API requires model download before use.");
+    summarizer = await ai.summarizer.create(options);
+    summarizer.addEventListener("downloadprogress", (e) => {
+      // console.log(`Download progress: ${e.loaded}/${e.total}`);
     });
-    console.log("Tab stream captured:", tabStream);
+    await summarizer.ready;
+  }
 
-    // Combine microphone and tab audio into a single MediaStream
-    const audioContext = new AudioContext();
-    const micSource = audioContext.createMediaStreamSource(micStream);
-    const tabSource = audioContext.createMediaStreamSource(tabStream);
+  const transcriptChunks = chunkTranscript(currentTranscript);
+  const promises = transcriptChunks.map((chunk, index) =>
+    summarizer.summarize(chunk, {
+      context: `Use the context to give a summarize the entire transcript. Provide the meeting minutes along with action items.`,
+      chunk: chunk,
+    })
+  );
 
-    const destination = audioContext.createMediaStreamDestination();
-    micSource.connect(destination);
-    tabSource.connect(destination);
-
-    const combinedStream = destination.stream;
-    console.log("Combined audio stream:", combinedStream);
-
-    // Process the combined audio (e.g., send to a transcription API)
-    // Example: Use MediaRecorder to record audio
-    const recorder = new MediaRecorder(combinedStream);
-    recorder.ondataavailable = (event) => {
-      console.log("Audio data available:", event.data);
-      // Send audio data to a transcription API
-    };
-    recorder.start();
+  try {
+    const responses = await Promise.all(promises);
+    const finalSummary = await summarizeResponses(
+      "summarize this list of summaries of a meeting transcript.Ensure that you give meeting minutes along with action items",
+      responses
+    );
+    return finalSummary;
   } catch (error) {
-    console.error("Error capturing audio:", error);
+    console.log(`Error: ${error.message}`);
+  }
+};
+
+function chunkTranscript(transcript, maxTokens = 800) {
+  const chunks = [];
+  let currentChunk = [];
+  let currentChunkTokensCount = 0;
+
+  transcript.forEach((dialogue) => {
+    const dialogueTokens = Math.ceil(dialogue.length / 4);
+
+    if (currentChunkTokensCount + dialogueTokens > maxTokens) {
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk.join(""));
+      }
+      currentChunk = [dialogue];
+      currentChunkTokensCount = dialogueTokens;
+    } else {
+      currentChunk.push(dialogue);
+      currentChunkTokensCount += dialogueTokens;
+    }
+  });
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk.join(""));
+  }
+  console.log("Chunks created ", chunks);
+  return chunks;
+}
+
+const summarizeResponses = async (userQuery, responses) => {
+  console.log("Responses before summarizing:", responses);
+  const summarisationContext = responses.join(" ");
+  const options = {
+    sharedContext: "This is a meeting transcript discussion",
+    type: "tl;dr",
+    format: "plain-text",
+    length: "short",
+  };
+
+  const available = (await ai.summarizer.capabilities()).available;
+  let summarizer;
+  if (available === "no") {
+    // console.log("Summarizer API is not available.");
+    return;
+  }
+  if (available === "readily") {
+    // console.log("Summarizer API is ready for immediate use.");
+    summarizer = await ai.summarizer.create(options);
+  } else {
+    // console.log("Summarizer API requires model download before use.");
+    summarizer = await ai.summarizer.create(options);
+    summarizer.addEventListener("downloadprogress", (e) => {
+      // console.log(`Download progress: ${e.loaded}/${e.total}`);
+    });
+    await summarizer.ready;
+  }
+
+  const summary = await summarizer.summarize(summarisationContext, {
+    context: `Use the context to give a summarised answer for the question ${userQuery}. Give a crisp answer covering all key points from the context shared. `,
+  });
+
+  return summary;
+};
+
+const cleanUpPrompt = `
+  Here is a part of the transcript which is in English but is worded poorly due to poor transcription. It will have errors such as spelling mistakes, missing punctuations, mixed words etc.:
+
+  {chunk}
+  
+  I want you to rephrase the transcript in proper English and output it back in English. Output only the corrected transcript, no need to provide any explanations.
+  
+  `;
+
+async function cleanupChunk(chunk, index) {
+  try {
+    console.log(`Cleaning up chunk ${index}:`);
+    console.log("Unclean Chunk content:", chunk);
+
+    const session = await chrome.aiOriginTrial.languageModel.create({
+      systemPrompt:
+        "You are a powerful model capable of receiving poorly phrased English transcripts and converting back to high quality english transcripts without any grammatical errors",
+    });
+
+    const message = cleanUpPrompt.replace("{chunk}", chunk);
+
+    const response = await session.prompt(message);
+    console.log(`Cleaned chunk ${index}:`, response.trim());
+    console.log("----------------------------------------");
+    return response.trim();
+  } catch (error) {
+    console.error(`Error cleaning up chunk ${index}:`, error);
+    return "ERROR";
   }
 }
-
-// Trigger audio capture
-captureAudio();
