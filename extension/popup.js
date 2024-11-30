@@ -421,8 +421,6 @@ async function sendMessage(event) {
       });
     });
 
-    console.log("user message, current chat history ", chatHistory);
-
     const updatedHistory = [
       ...chatHistory,
       {
@@ -435,8 +433,6 @@ async function sendMessage(event) {
     await new Promise((resolve) => {
       chrome.storage.local.set({ chatHistory: updatedHistory }, resolve);
     });
-
-    console.log("Chat history after setting:", updatedHistory);
   } catch (error) {
     console.error("Error storing chat history:", error);
   }
@@ -467,7 +463,34 @@ async function sendMessage(event) {
     const botMessage = document.createElement("div");
     botMessage.className =
       "relative mb-2 p-2 bg-emerald-600 text-white self-start rounded-xl rounded-bl-none mr-3 ml-2";
-    const botResponse = response || "No relevant information found.";
+    let botResponse = response;
+    if (!botResponse || botResponse === "No relevant information found.") {
+      chatWindow.appendChild(typingIndicator);
+      const session = await chrome.aiOriginTrial.languageModel.create({
+        systemPrompt:
+          "You are a helpful assistant. Follow these guidelines for different types of questions:\n\n" +
+          "1. For questions requiring meeting context (e.g. 'What was discussed about the project timeline?', 'Who is responsible for the UI design?'), respond with 'NEEDS_CONTEXT'\n\n" +
+          "2. For general knowledge questions:\n" +
+          "- Factual queries (e.g. 'What is the capital of India?') -> Provide direct answers ('The capital of India is New Delhi')\n" +
+          "- Technical questions (e.g. 'What is JavaScript?') -> Give concise explanations\n" +
+          "- Math/calculations -> Show working and final answer\n\n" +
+          "3. For greetings/casual conversation:\n" +
+          "- Hello/Hi -> Respond warmly ('Hello! How can I help you today?')\n" +
+          "- How are you -> Be friendly but professional ('I'm doing well, thank you! How may I assist you?')\n\n" +
+          "4. For unclear/ambiguous questions:\n" +
+          "- Ask for clarification\n" +
+          "- Suggest how the question could be rephrased\n\n" +
+          "Keep responses concise, helpful and natural. If unsure about meeting-specific details, respond with 'NEEDS_CONTEXT'.",
+      });
+      const genericResponse = await session.prompt(message);
+      if (!genericResponse.includes("NEEDS_CONTEXT")) {
+        botResponse = genericResponse;
+      } else {
+        botResponse = "No relevant information found.";
+      }
+      chatWindow.removeChild(typingIndicator);
+    }
+
     botMessage.innerText = botResponse;
     chatWindow.appendChild(botMessage);
 
